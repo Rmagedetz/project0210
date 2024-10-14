@@ -2,3 +2,4 @@ streamlit~=1.38.0
 SQLAlchemy~=2.0.34
 pandas~=2.2.2
 mysql-connector-python
+docxtpl~=0.18.0

@@ -1,5 +1,6 @@
 import streamlit as st
 import sql_queries
+import docxtpl
 
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -44,13 +45,15 @@ debts = st.Page("pages/records/debts.py", title="Списания", icon=":mater
 child_report = st.Page("pages/records/child_report.py", title="Отчет по ребенку", icon=":material/child_care:")
 parent_report = st.Page("pages/records/parent_report.py", title="Отчет по родителю",
                         icon=":material/escalator_warning:")
+ord_gen_page = st.Page("pages/documents/ord_gen.py", title="Сгенерировать договор", icon=":material/history_edu:")
 
 if st.session_state.logged_in:
     pg = st.navigation(
         {
             "Логин": [logout_page],
             "Пользователи и роли": [users, roles],
-            "Записи": [records_main, group_cards, payments, debts, child_report, parent_report]
+            "Записи": [records_main, group_cards, payments, debts, child_report, parent_report],
+            "Документы": [ord_gen_page]
         }
     )
 else:
