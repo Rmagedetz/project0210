@@ -6,6 +6,8 @@ from contextlib import contextmanager
 from connections import sql_connection_string
 import datetime
 import pandas as pd
+import time
+import streamlit as st
 
 Base = declarative_base()
 
@@ -52,6 +54,121 @@ def get_list(cls, column_name, on_error_text):
 
     finally:
         session.close()
+
+
+def initiate_query(query, on_error_text):
+    session = Session()
+
+    try:
+        session.add(query)
+        session.commit()
+        print("Запись добавлена успешно!")
+
+    except Exception as e:
+        session.rollback()
+        print(f"{on_error_text} : {e}")
+
+    finally:
+        session.close()
+
+def initiate_batch_query(queries, on_error_text, batch_size=100):
+    """
+    Выполняет пакетную вставку записей в базу данных с отслеживанием прогресса.
+
+    :param queries: Список объектов, которые нужно вставить в базу данных.
+    :param on_error_text: Текст ошибки, который выводится в случае неудачи.
+    :param batch_size: Размер партии для вставки (по умолчанию 100 записей за раз).
+    """
+    session = Session()
+
+    total_records = len(queries)
+    st.write(f"Начало пакетной вставки {total_records} записей...")
+    st.success(f"Начало пакетной вставки {total_records} записей...")
+
+
+    try:
+        start_time = time.time()
+
+        # Проходим по списку записей с шагом batch_size
+        for i in range(0, total_records, batch_size):
+            batch = queries[i:i + batch_size]
+            session.add_all(batch)
+            session.commit()
+
+            # Отслеживание прогресса
+            print(f"Вставлено {min(i + batch_size, total_records)} из {total_records} записей.")
+            st.success(f"Вставлено {min(i + batch_size, total_records)} из {total_records} записей.")
+
+        elapsed_time = time.time() - start_time
+        print(f"Все записи добавлены успешно за {elapsed_time:.2f} секунд!")
+        st.success(f"Все записи добавлены успешно за {elapsed_time:.2f} секунд!")
+
+    except Exception as e:
+        session.rollback()
+        print(f"{on_error_text} : {e}")
+    finally:
+        session.close()
+        print("Сессия закрыта.")
+
+
+class persons(Base):
+    __tablename__ = "persons"
+    id = Column(Integer, primary_key=True)
+    child_name = Column(String(300))
+    parent_phone_num = Column(String(300))
+    parent_email = Column(String(300))
+    child_birthday = Column(DateTime())
+    parent_main = Column(String(300))
+    parent_passport = Column(String(300))
+    parent_adress = Column(String(300))
+    child_adress = Column(String(300))
+
+    @classmethod
+    def get_list(cls):
+        return get_list(cls, 'child_name', "Ошибка при загрузке списка детей")
+
+    @classmethod
+    def add_record(cls, child_name, parent_phone_num, parent_email, child_birthday,
+                   parent_main, parent_passport, parent_adress, child_adress):
+        new_record = cls(child_name=child_name,
+                         parent_phone_num=parent_phone_num,
+                         parent_email=parent_email,
+                         child_birthday=child_birthday,
+                         parent_main=parent_main,
+                         parent_passport=parent_passport,
+                         parent_adress=parent_adress,
+                         child_adress=child_adress)
+        initiate_query(new_record, on_error_text="Ошибка добавления информации в базу")
+
+    @classmethod
+    def get_as_dataframe(cls):
+        return get_table_as_dataframe(cls, columns_order=["child_name",
+                                                          "parent_phone_num",
+                                                          "parent_email",
+                                                          "child_birthday",
+                                                          "parent_main",
+                                                          "parent_passport",
+                                                          "parent_adress",
+                                                          "child_adress"],
+                                      on_error_text="Ошибка получения датафрейма базы")
+
+    @classmethod
+    def get_as_dataframe_for_single_child(cls, value):
+        column = cls.child_name
+        return get_table_as_dataframe(cls, columns_order=["child_name",
+                                                          "parent_phone_num",
+                                                          "parent_email",
+                                                          "child_birthday",
+                                                          "parent_main",
+                                                          "parent_passport",
+                                                          "parent_adress",
+                                                          "child_adress"],
+                                      on_error_text="Ошибка получения датафрейма базы",
+                                      column=column,
+                                      column_value=value)
+
+
+#
 
 
 class UsersTable(Base):
