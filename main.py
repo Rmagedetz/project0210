@@ -14,11 +14,11 @@ def login():
         submit = st.form_submit_button("Войти")
 
         if submit:
-            if user_input in sql_queries.UsersTable.get_list():
-                if password_input == sql_queries.UsersTable.check_pass(user_input):
+            if user_input in sql_queries.get_user_list():
+                if password_input == sql_queries.check_user_password(user_input):
                     st.session_state.logged_in = True
                     st.session_state.user = user_input
-                    st.session_state.role = sql_queries.UsersTable.get_role(user_input)
+                    st.session_state.role = sql_queries.get_user_role(user_input)
                     st.rerun()
                 else:
                     st.error("Неверный логин или пароль")
