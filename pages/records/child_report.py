@@ -3,9 +3,9 @@ import streamlit as st
 import sql_queries
 
 selected_season = st.session_state.get('selected_season', 'Сезон не выбран')
-child_list = sql_queries.Info.get_list()
-child_fio_selector = st.selectbox("Ф.И.О Ребенка:", child_list)
-df = sql_queries.Info.get_as_dataframe()
+child_list = sql_queries.get_info_list()
+child_fio_selector = st.selectbox("Ф.И.О Ребенка:", child_list, index=None)
+df = sql_queries.get_info_dataframe()
 df = df[df["child_name"] == child_fio_selector].reset_index()
 base, payments = st.tabs(["Анкетные данные", "Платежи"])
 with base:
@@ -56,5 +56,5 @@ with base:
         additional = additional.rename(columns={"": "", 0: ""})
         additional = st.table(additional)
 with payments:
-    table = sql_queries.Payments.get_as_dataframe_for_single_child(child_fio_selector)
+    table = sql_queries.get_payments_for_single_child(child_fio_selector)
     st.write(table)

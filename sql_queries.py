@@ -71,6 +71,7 @@ def initiate_query(query, on_error_text):
     finally:
         session.close()
 
+
 def initiate_batch_query(queries, on_error_text, batch_size=100):
     """
     Выполняет пакетную вставку записей в базу данных с отслеживанием прогресса.
@@ -84,7 +85,6 @@ def initiate_batch_query(queries, on_error_text, batch_size=100):
     total_records = len(queries)
     st.write(f"Начало пакетной вставки {total_records} записей...")
     st.success(f"Начало пакетной вставки {total_records} записей...")
-
 
     try:
         start_time = time.time()
@@ -668,6 +668,34 @@ def get_payments_dataframe():
                                                            "payment_type",
                                                            "payment_season",
                                                            "payment_comment"],
+                                  on_error_text="Ошибка получения датафрейма приходов")
+
+
+def get_payments_for_single_child(child_name):
+    return get_table_as_dataframe(Payments, columns_order=["payment_creation_time",
+                                                           'worker_login',
+                                                           "payment_child_parent_name",
+                                                           "payment_child_name",
+                                                           "payment_sum",
+                                                           "payment_type",
+                                                           "payment_season",
+                                                           "payment_comment"],
+                                  column=Payments.payment_child_name,
+                                  column_value=child_name,
+                                  on_error_text="Ошибка получения датафрейма приходов")
+
+
+def get_payments_for_single_adult(adult_name):
+    return get_table_as_dataframe(Payments, columns_order=["payment_creation_time",
+                                                           'worker_login',
+                                                           "payment_child_parent_name",
+                                                           "payment_child_name",
+                                                           "payment_sum",
+                                                           "payment_type",
+                                                           "payment_season",
+                                                           "payment_comment"],
+                                  column=Payments.payment_child_parent_name,
+                                  column_value=adult_name,
                                   on_error_text="Ошибка получения датафрейма приходов")
 
 
