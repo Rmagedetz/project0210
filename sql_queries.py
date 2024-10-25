@@ -56,22 +56,6 @@ def get_list(cls, column_name, on_error_text):
         session.close()
 
 
-def initiate_query(query, on_error_text):
-    session = Session()
-
-    try:
-        session.add(query)
-        session.commit()
-        print("Запись добавлена успешно!")
-
-    except Exception as e:
-        session.rollback()
-        print(f"{on_error_text} : {e}")
-
-    finally:
-        session.close()
-
-
 def initiate_batch_query(queries, on_error_text, batch_size=100):
     """
     Выполняет пакетную вставку записей в базу данных с отслеживанием прогресса.
@@ -123,60 +107,28 @@ class persons(Base):
     parent_adress = Column(String(300))
     child_adress = Column(String(300))
 
-    @classmethod
-    def get_list(cls):
-        return get_list(cls, 'child_name', "Ошибка при загрузке списка детей")
 
-    @classmethod
-    def add_record(cls, child_name, parent_phone_num, parent_email, child_birthday,
-                   parent_main, parent_passport, parent_adress, child_adress):
-        new_record = cls(child_name=child_name,
-                         parent_phone_num=parent_phone_num,
-                         parent_email=parent_email,
-                         child_birthday=child_birthday,
-                         parent_main=parent_main,
-                         parent_passport=parent_passport,
-                         parent_adress=parent_adress,
-                         child_adress=child_adress)
-        initiate_query(new_record, on_error_text="Ошибка добавления информации в базу")
-
-    @classmethod
-    def get_as_dataframe(cls):
-        return get_table_as_dataframe(cls, columns_order=["child_name",
-                                                          "parent_phone_num",
-                                                          "parent_email",
-                                                          "child_birthday",
-                                                          "parent_main",
-                                                          "parent_passport",
-                                                          "parent_adress",
-                                                          "child_adress"],
-                                      on_error_text="Ошибка получения датафрейма базы")
-
-    @classmethod
-    def get_as_dataframe_for_single_child(cls, value):
-        column = cls.child_name
-        return get_table_as_dataframe(cls, columns_order=["child_name",
-                                                          "parent_phone_num",
-                                                          "parent_email",
-                                                          "child_birthday",
-                                                          "parent_main",
-                                                          "parent_passport",
-                                                          "parent_adress",
-                                                          "child_adress"],
-                                      on_error_text="Ошибка получения датафрейма базы",
-                                      column=column,
-                                      column_value=value)
-
-
-#
+def get_persons_list():
+    return get_list(persons, 'child_name', "Ошибка при загрузке списка детей")
 
 
 class UsersTable(Base):
-    __tablename__ = "Users"
+    __tablename__ = "Users_new"
     user_id = Column(Integer, primary_key=True)
-    user_name = Column(String(300))
-    user_password = Column(String(100))
-    user_role = Column(String(100))
+    user_name = Column(String(300), nullable=False)
+    user_password = Column(String(100), nullable=False)
+
+    role_id = Column(Integer, ForeignKey('roles.id'), nullable=False)
+    role = relationship("Role", back_populates="users")
+
+
+class Role(Base):
+    __tablename__ = 'roles'
+
+    role_id = Column(Integer, primary_key=True)
+    role_name = Column(String(300), unique=True, nullable=False)
+
+    users = relationship("User", back_populates="role", cascade="all, delete")
 
 
 class Info(Base):
