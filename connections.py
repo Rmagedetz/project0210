@@ -12,7 +12,7 @@ google_sheet_credit_nails = {
     "auth_provider_x509_cert_url": st.secrets["gs_credit_nails"]["auth_provider_x509_cert_url"],
     "client_x509_cert_url": st.secrets["gs_credit_nails"]["client_x509_cert_url"]}
 
-sql_connection_string = ("mysql+mysqlconnector://{}:{}@{}:{}/{}".format
+sql_connection_string = ("mysql+pymysql://{}:{}@{}:{}/{}".format
                          (st.secrets["database_connection"]["user"],
                           st.secrets["database_connection"]["password"],
                           st.secrets["database_connection"]["host"],

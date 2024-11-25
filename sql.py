@@ -471,6 +471,7 @@ class Group(Base):
 
     filial = relationship("Filial", back_populates="groups")
     children = relationship("GroupChild", back_populates="group")
+    bills = relationship("Bills", back_populates="group")
 
     __table_args__ = (UniqueConstraint('name', 'filial_id', name='_group_filial_uc'),)
 
@@ -618,6 +619,7 @@ class Child(Base):
 
     groups = relationship("GroupChild", back_populates="child")
     payments = relationship("Payments", back_populates="child")
+    bills = relationship("Bills", back_populates="child")
 
     __table_args__ = (UniqueConstraint('name', name='_child_name_uc'),)
 
@@ -923,6 +925,21 @@ class Payments(Base):
     child = relationship("Child", back_populates="payments")
 
 
+class Bills(Base):
+    __tablename__ = 'bills'
+
+    id = Column(Integer, primary_key=True)
+    payment_date = Column(DateTime, nullable=False)
+    group_id = Column(Integer, ForeignKey('groups.id'), nullable=False)
+    child_id = Column(Integer, ForeignKey('children.id'), nullable=False)
+    amount = Column(Float, nullable=False)
+    recorded_by = Column(String(50), nullable=False)
+    comment = Column(String(200), nullable=True)
+
+    child = relationship("Child", back_populates="bills")
+    group = relationship("Group", back_populates="bills")
+
+
 def get_payments_dataframe():
     with session_scope() as session:
         # Выполняем запрос, включая связь с Child и User
@@ -952,6 +969,40 @@ def get_payments_dataframe():
         return df
 
 
+def get_bills_dataframe():
+    with session_scope() as session:
+        # Выполняем запрос, включая связь с Child и Group
+        bills = (
+            session.query(Bills)
+            .options(
+                joinedload(Bills.child),  # Загрузка связанных данных о ребенке
+                joinedload(Bills.group)  # Загрузка связанных данных о группе
+            )
+            .all()
+        )
+
+        # Создаем список данных для формирования датафрейма
+        bill_data = []
+        for bill in bills:
+            child = bill.child  # Получаем объект ребенка через связь
+            group = bill.group  # Получаем объект группы через связь
+            bill_data.append({
+                "id": bill.id,
+                "payment_date": bill.payment_date,
+                "user": bill.recorded_by,  # Имя пользователя, записавшего счет
+                "child_name": child.name,
+                "group_name": group.name if group else None,  # Имя группы (если оно есть)
+                "amount": bill.amount,  # Сумма счета
+                "comment": bill.comment
+            })
+
+        # Создаем датафрейм
+        df = pd.DataFrame(bill_data)
+        df.index += 1  # Индексация с 1, а не с 0
+
+        return df
+
+
 def add_payment(payment_date, child_name, amount, user_name, comment):
     with session_scope() as session:
         # Находим ребенка по имени
@@ -964,6 +1015,34 @@ def add_payment(payment_date, child_name, amount, user_name, comment):
         new_payment = Payments(
             payment_date=payment_date,
             child_id=child.id,  # Используем ID найденного ребенка
+            amount=amount,
+            recorded_by=user_name,  # Имя пользователя, записавшего платеж
+            comment=comment
+        )
+
+        try:
+            session.add(new_payment)  # Добавляем новый платеж в сессию
+            session.commit()  # Подтверждаем изменения
+            return True  # Возвращаем True при успешном добавлении
+        except IntegrityError:
+            session.rollback()  # Откатываем изменения при ошибке
+            return False  # Возвращаем False при ошибке
+
+
+def add_bill(payment_date, child_name, group_name, amount, user_name, comment):
+    with session_scope() as session:
+        # Находим ребенка по имени
+        child = session.query(Child).filter(Child.name == child_name).first()
+        group = session.query(Group).filter(Group.name == group_name).first()
+
+        if not child:
+            return False  # Возвращаем False, если ребенок не найден
+
+        # Создаем новый объект платежа
+        new_payment = Bills(
+            payment_date=payment_date,
+            child_id=child.id,  # Используем ID найденного ребенка
+            group_id=group.id,
             amount=amount,
             recorded_by=user_name,  # Имя пользователя, записавшего платеж
             comment=comment
@@ -997,6 +1076,35 @@ def get_payment_details(payment_id):
             "amount": payment.amount,
             "user_name": payment.recorded_by,
             "comment": payment.comment
+        }
+
+        # Преобразуем словарь в DataFrame
+        payment_df = pd.DataFrame([payment_data])
+
+        return payment_df
+
+
+def get_bill_details(bill_id):
+    with session_scope() as session:
+        # Получаем информацию о платеже по ID
+        bill = session.query(Bills).filter(Bills.id == bill_id).first()
+
+        if not bill:
+            return pd.DataFrame()  # Возвращаем пустой DataFrame, если платеж не найден
+
+        # Получаем информацию о ребенке, связанном с платежом
+        child = session.query(Child).filter(Child.id == bill.child_id).first()
+        group = session.query(Group).filter(Group.id == bill.group_id).first()
+
+        # Создаем словарь с данными о платеже
+        payment_data = {
+            "payment_id": bill.id,
+            "payment_date": bill.payment_date,
+            "child_name": child.name if child else "Неизвестный ребенок",
+            "group_name": group.name if group else "Неизвестная группа",
+            "amount": bill.amount,
+            "user_name": bill.recorded_by,
+            "comment": bill.comment
         }
 
         # Преобразуем словарь в DataFrame
@@ -1044,6 +1152,134 @@ def delete_payment(payment_id):
         session.commit()
 
         return True
+
+
+def get_group_id_by_name_and_season_and_filial(group_name, season_name, filial_name):
+    with Session() as session:
+        # Получаем сезон по имени
+        season = session.query(Season).filter_by(name=season_name).first()
+        if not season:
+            raise ValueError(f"Сезон с именем {season_name} не найден.")
+
+        # Получаем филиал по имени и сезону
+        filial = session.query(Filial).filter_by(name=filial_name, season_id=season.id).first()
+        if not filial:
+            raise ValueError(f"Филиал с именем {filial_name} в сезоне {season_name} не найден.")
+
+        # Получаем группу по имени и ID филиала
+        group = session.query(Group).filter_by(name=group_name, filial_id=filial.id).first()
+        if not group:
+            raise ValueError(f"Группа с именем {group_name} в филиале {filial_name} не найдена.")
+
+        # Возвращаем ID группы
+        return group.id
+
+
+def get_child_id_by_name(child_name):
+    with Session() as session:
+        # Ищем ребенка по имени
+        child = session.query(Child).filter_by(name=child_name).first()
+
+        # Если ребенок не найден, выбрасываем ошибку
+        if not child:
+            raise ValueError(f"Ребенок с именем {child_name} не найден.")
+
+        # Возвращаем ID ребенка
+        return child.id
+
+
+class Visits(Base):
+    __tablename__ = 'visits'
+
+    id = Column(Integer, primary_key=True)
+    group_id = Column(Integer, ForeignKey('groups.id'), nullable=False)
+    child_id = Column(Integer, ForeignKey('children.id'), nullable=False)
+    day = Column(Integer)
+    visit = Column(String(10))
+
+    __table_args__ = (UniqueConstraint('group_id', 'child_id', 'day', name='_unique_visit'),)
+
+    @classmethod
+    def get_visits_dataframe_for_group(cls, group_name):
+        with session_scope() as session:
+            # Выполняем запрос с объединением таблиц Groups и Children
+            results = session.query(
+                Child.name.label("Имя ребенка"),
+                cls.day.label("День"),
+                cls.visit.label("Посещение")
+            ).join(
+                Child, cls.child_id == Child.id
+            ).join(
+                Group, cls.group_id == Group.id
+            ).filter(
+                Group.name == group_name  # Фильтруем по названию группы
+            ).all()
+
+            # Преобразуем результаты в DataFrame
+            df = pd.DataFrame(results, columns=["Имя ребенка", "День", "Посещение"])
+
+            if df.empty:
+                return pd.DataFrame(columns=["Имя ребенка"] + list(range(1, 11)))
+
+            # Пивотируем данные, чтобы получить дни как столбцы
+            pivot_df = df.pivot(index="Имя ребенка", columns="День", values="Посещение").reset_index()
+
+            # Упорядочиваем столбцы
+            pivot_df.columns.name = None  # Убираем имя уровня колонок
+            all_days = list(range(1, 11))  # Дни от 1 до 10
+            for day in all_days:
+                if day not in pivot_df.columns:
+                    pivot_df[day] = pd.NA  # Добавляем отсутствующие дни как NaN
+
+            pivot_df = pivot_df[["Имя ребенка"] + all_days]
+            pivot_df.index += 1
+            return pivot_df
+
+    @classmethod
+    def set_visit(cls, child_name, group_name, day, visit):
+        with session_scope() as session:
+            child = session.query(Child).filter(Child.name == child_name).first()
+            group = session.query(Group).filter(Group.name == group_name).first()
+            try:
+                add = cls(group_id=group.id,
+                          child_id=child.id,
+                          day=day,
+                          visit=visit)
+                session.add(add)
+            except:
+                pass
+
+    @classmethod
+    def insert_or_update_visits(cls, df_melted):
+        with session_scope() as session:
+            # Перебираем строки DataFrame и вставляем или обновляем записи в таблице visits
+            for _, row in df_melted.iterrows():
+                group_id = row['group_id']
+                child_id = row['child_id']
+                day = row['day']
+                visit = row['visit']
+
+                # Пытаемся найти существующую запись
+                existing_visit = session.query(cls).filter_by(
+                    group_id=group_id, child_id=child_id, day=day).first()
+
+                if existing_visit:
+                    # Если запись существует, проверяем отличается ли visit
+                    if existing_visit.visit != visit:
+                        # Если отличается, обновляем запись
+                        existing_visit.visit = visit
+                else:
+                    # Если записи нет, создаем новую
+                    new_visit = cls(
+                        group_id=group_id,
+                        child_id=child_id,
+                        day=day,
+                        visit=visit
+                    )
+                    session.add(new_visit)
+
+            # После завершения цикла коммитим изменения
+            session.commit()
 
 
 @contextmanager

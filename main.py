@@ -36,7 +36,7 @@ def logout():
 login_page = st.Page(login, title="Log in", icon=":material/login:")
 logout_page = st.Page(logout, title="Выйти", icon=":material/logout:")
 
-users = st.Page("pages/settings/users.py", title="Пользователи", icon=":material/group:", default=True)
+users = st.Page("pages/settings/users.py", title="Пользователи", icon=":material/group:")
 roles = st.Page("pages/settings/roles.py", title="Роли", icon=":material/manage_accounts:")
 
 seasons = st.Page("pages/seasons_filials_groups/seasons.py", title="Сезоны")
@@ -51,6 +51,10 @@ group_cards = st.Page("pages/group_cards/group_card.py", title="Карточки
 
 payments = st.Page('pages/payments and expenses/payments.py', title="Платежи")
 
+records_v1 = st.Page("pages/records_variants/var_1.py", title="Записи (в1)",default=True)
+
+bills = st.Page("pages/payments and expenses/bills.py", title="Списания")
+
 if st.session_state.logged_in:
     pg = st.navigation(
         {
@@ -59,7 +63,8 @@ if st.session_state.logged_in:
             "Администрирование": [seasons, filials, groups],
             "Данные детей": [leavers, gt_quiz, old_base],
             "Карточки групп": [group_cards],
-            "Платежи и списания": [payments]
+            "Платежи и списания": [payments, bills],
+            "Записи": [records_v1]
         }
     )
 else:

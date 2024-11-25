@@ -1,7 +1,7 @@
 streamlit~=1.38.0
 SQLAlchemy~=2.0.34
 pandas~=2.2.2
-mysql-connector-python
+pymysql
 docxtpl~=0.18.0
 gspread~=6.1.4
 cryptography~=43.0.3
