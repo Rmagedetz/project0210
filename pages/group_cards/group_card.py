@@ -6,6 +6,10 @@ user_logged = st.session_state.user
 
 col1, col2, col3 = st.columns(3)
 
+season = st.session_state.season
+filial = st.session_state.filial
+group = st.session_state.group
+
 
 @st.dialog("Добавление ребенка в группу")
 def add_child_to_group():
@@ -41,7 +45,8 @@ def move_child_to_group():
         if season_to:
             filial_to = st.selectbox("Филиал", sql.get_filials_list_for_season(season_to), index=None)
             if filial_to:
-                group_to = st.selectbox("Группа", sql.get_groups_list_for_filial_in_season(season_to, filial_to), index=None)
+                group_to = st.selectbox("Группа", sql.get_groups_list_for_filial_in_season(season_to, filial_to),
+                                        index=None)
                 if filial_to:
                     if st.button("Перенести ребенка"):
                         sql.move_child_to_group(season_from, filial_from, group_from,
@@ -50,12 +55,13 @@ def move_child_to_group():
                         st.rerun()
 
 
-
 with col1:
-    season_selector = st.selectbox("Сезон", sql.get_seasons_list(), index=None, key="season_selector")
+    sel = sql.get_seasons_list()
+    season_selector = st.selectbox("Сезон", sel, index=sel.index(season), key="season_selector")
 with col2:
     if 'season_selector' in st.session_state and season_selector:
-        filial_selector = st.selectbox("Филиал", sql.get_filials_list_for_season(season_selector), index=None,
+        sel = sql.get_filials_list_for_season(season_selector)
+        filial_selector = st.selectbox("Филиал", sel, index=sel.index(filial),
                                        key="fil_sel")
     else:
         filial_selector = None  # Инициализируем filial_selector как None
@@ -63,13 +69,14 @@ with col2:
 with col3:
     if filial_selector:
         groups_list = sql.get_groups_list_for_filial_in_season(season_selector, filial_selector)
-        groups_selector = st.selectbox("Группа", groups_list, index=None)
+        groups_selector = st.selectbox("Группа", groups_list, index=groups_list.index(group))
     else:
         groups_selector = None  # Инициализируем groups_selector как None
         data = pd.DataFrame()  # Создаем пустой DataFrame
 
 if groups_selector:
     data = sql.get_children_in_group(season_selector, filial_selector, groups_selector)
+
     if not data.empty:
         child_list, visits, data_list, lockers, pool, adress = st.tabs(
             ["Список", "Посещаемость", "Лист ознакомления", "Список на шкафчики", "Бассейн", "Адреса"])
@@ -99,15 +106,64 @@ if groups_selector:
                                         disabled=True)
             with visits:
                 df = data[["name", "parent_main_name", "parent_main_phone", "leave", "child_birthday"]]
-                df2 = st.data_editor(df,
-                                     column_config={"name": "ФИО ребенка",
-                                                    "child_birthday": "Дата рождения",
-                                                    "parent_main_name": "ФИО родителя",
-                                                    "parent_main_phone": "Телефон",
-                                                    "phone_add": "Телефон",
-                                                    "leave": "Уходит сам",
-                                                    },
-                                     disabled=True)
+                visits = sql.Visits.get_visits_dataframe_for_group(groups_selector)
+                visits.rename(columns={"Имя ребенка": "name"}, inplace=True)
+
+                merged_df = pd.merge(df, visits, on="name", how="left")
+                day_columns = list(range(1, 11))
+
+                merged_df = merged_df[
+                    ["name", "parent_main_name", "parent_main_phone", "leave", "child_birthday"] + day_columns]
+
+                merged_df.index += 1
+
+                colunms_config = {"child_birthday": st.column_config.DateColumn("ДР",
+                                                                                help="День рождения",
+                                                                                width="small",
+                                                                                format="DD-MM-YYYY",
+                                                                                disabled=True),
+                                  "name": st.column_config.Column("ФИО",
+                                                                  help="ФИО",
+                                                                  width="medium",
+                                                                  disabled=True),
+                                  "parent_main_name": st.column_config.Column("Родитель",
+                                                                              help="ФИО родителя",
+                                                                              width="small",
+                                                                              disabled=True),
+                                  "parent_main_phone": st.column_config.Column("Тел",
+                                                                               help="Телефон родителя",
+                                                                               width="small",
+                                                                               disabled=True),
+                                  "leave": st.column_config.Column("Уходит",
+                                                                   help="Уходит сам",
+                                                                   width="small",
+                                                                   disabled=True),
+                                  "1": st.column_config.SelectboxColumn("1",
+                                                                        options=[1, 2, 3])}
+
+                for day in day_columns:
+                    colunms_config[f"{day}"] = st.column_config.SelectboxColumn(f"{day}",
+                                                                                options=[1, "1Д", "X", "Н", "П",
+                                                                                         "Б", "В"])
+
+                editor = st.data_editor(merged_df,
+                                        column_config=colunms_config)
+
+                if st.button("Проставить посещаемость"):
+                    day_columns = list(map(str, range(1, 11)))
+
+                    df_melted = editor.melt(
+                        id_vars=['name'],
+                        value_vars=day_columns,
+                        var_name='day', value_name='visit')
+
+                    df_melted.dropna(subset=['visit'], inplace=True)
+                    gr_id = sql.get_group_id_by_name_and_season_and_filial(group, season, filial)
+                    df_melted["group_id"] = gr_id
+                    df_melted["child_id"] = df_melted["name"].apply(sql.get_child_id_by_name)
+                    df_melted.drop(columns=["name"], inplace=True)
+                    sql.Visits.insert_or_update_visits(df_melted)
+
             with data_list:
                 df = data[["name", "child_birthday", "disease", "allergy",
                            "other", "physic", "leave", "jacket_swimm", "additional_info",
