@@ -6,9 +6,9 @@ user_logged = st.session_state.user
 
 col1, col2, col3 = st.columns(3)
 
-season = st.session_state.season
-filial = st.session_state.filial
-group = st.session_state.group
+season = st.session_state.season if "season" in st.session_state else None
+filial = st.session_state.filial if "filial" in st.session_state else None
+group = st.session_state.group if "group" in st.session_state else None
 
 
 @st.dialog("Добавление ребенка в группу")
@@ -57,11 +57,11 @@ def move_child_to_group():
 
 with col1:
     sel = sql.get_seasons_list()
-    season_selector = st.selectbox("Сезон", sel, index=sel.index(season), key="season_selector")
+    season_selector = st.selectbox("Сезон", sel, index=sel.index(season) if season else None, key="season_selector")
 with col2:
     if 'season_selector' in st.session_state and season_selector:
         sel = sql.get_filials_list_for_season(season_selector)
-        filial_selector = st.selectbox("Филиал", sel, index=sel.index(filial),
+        filial_selector = st.selectbox("Филиал", sel, index=sel.index(filial) if filial else None,
                                        key="fil_sel")
     else:
         filial_selector = None  # Инициализируем filial_selector как None
@@ -69,7 +69,7 @@ with col2:
 with col3:
     if filial_selector:
         groups_list = sql.get_groups_list_for_filial_in_season(season_selector, filial_selector)
-        groups_selector = st.selectbox("Группа", groups_list, index=groups_list.index(group))
+        groups_selector = st.selectbox("Группа", groups_list, index=groups_list.index(group) if group else None)
     else:
         groups_selector = None  # Инициализируем groups_selector как None
         data = pd.DataFrame()  # Создаем пустой DataFrame
